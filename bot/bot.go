@@ -51,15 +51,25 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	case strings.Contains(message.Content, "!help"):
 		discord.ChannelMessageSend(message.ChannelID, fmt.Sprintf("Hello World😃, %s", message.Content))
 	case strings.Contains(message.Content, ".setupgame"):
-		slog.Info("Creating Category: setup")
-		newCategory, err := discord.GuildChannelCreate(message.GuildID, "setup", discordgo.ChannelTypeGuildCategory)
-		slog.Info("Created Category: setup")
+		permissions, err := discord.UserChannelPermissions(message.Author.ID, message.ChannelID)
+		if err != nil {
+			slog.Error(err.Error())
+		}
+		if permissions&discordgo.PermissionAdministrator == discordgo.PermissionAdministrator {
 
-		if err == nil {
-			slog.Info("Creating Channel: channel")
-			channelData := discordgo.GuildChannelCreateData{Name: "channel", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-			discord.GuildChannelCreateComplex(message.GuildID, channelData)
-			slog.Info("Created Channel: channel")
+			slog.Info("Creating Category: setup")
+			newCategory, err := discord.GuildChannelCreate(message.GuildID, "setup", discordgo.ChannelTypeGuildCategory)
+			slog.Info("Created Category: setup")
+
+			if err == nil {
+				slog.Info("Creating Channel: channel")
+				channelData := discordgo.GuildChannelCreateData{Name: "channel", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+				discord.GuildChannelCreateComplex(message.GuildID, channelData)
+				slog.Info("Created Channel: channel")
+			}
+		} else {
+			slog.Warn("User is not admin")
+			slog.Warn("Permissions", slog.Int64("Permissions:", permissions))
 		}
 	case strings.Contains(message.Content, "!bye"):
 		discord.ChannelMessageSend(message.ChannelID, "Good Bye👋")

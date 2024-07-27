@@ -20,5 +20,6 @@ func main() {
 	}
 
 	bot.BotToken = os.Getenv("DISCORD_TOKEN")
+	bot.GuildID = os.Getenv("GUILD_ID")
 	bot.Run() // call the run function of bot/bot.go
 }

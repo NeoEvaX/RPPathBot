@@ -141,6 +141,7 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 		permissions, err := s.UserChannelPermissions(message.Author.ID, message.ChannelID)
 		if err != nil {
 			slog.Error(err.Error())
+			return
 		}
 
 		slog.Info("BrokenMessage", slog.Any("Message", brokenMessage))
@@ -148,6 +149,17 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 
 		if permissions&discordgo.PermissionAdministrator == discordgo.PermissionAdministrator {
 
+			channels, err := s.GuildChannels(GuildID)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+			if doesCategoryExist(channels, gameName) {
+				s.ChannelMessageSend(message.ChannelID, "Game already exists! Try again.")
+
+				slog.Error("Game already exists")
+				return
+			}
 			slog.Info(fmt.Sprintf("Creating Category: %s", gameName))
 			newCategory, err := s.GuildChannelCreate(message.GuildID, gameName, discordgo.ChannelTypeGuildCategory)
 			slog.Info("Done")
@@ -195,4 +207,18 @@ func splitMessage(s string) []string {
 
 func verifySetupGameMessage([]string) bool {
 	return true
+}
+
+func doesCategoryExist(channels []*discordgo.Channel, newName string) bool {
+	for _, c := range channels {
+		// Check if channel is a guild text channel and not a voice or DM channel
+		if c.Type != discordgo.ChannelTypeGuildCategory {
+			continue
+		}
+
+		if c.Name == newName {
+			return true
+		}
+	}
+	return false
 }

@@ -144,45 +144,57 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			return
 		}
 
-		slog.Info("BrokenMessage", slog.Any("Message", brokenMessage))
-		gameName := brokenMessage[1]
-
-		if permissions&discordgo.PermissionAdministrator == discordgo.PermissionAdministrator {
-
-			channels, err := s.GuildChannels(GuildID)
-			if err != nil {
-				slog.Error(err.Error())
-				return
-			}
-			if doesCategoryExist(channels, gameName) {
-				s.ChannelMessageSend(message.ChannelID, "Game already exists! Try again.")
-
-				slog.Error("Game already exists")
-				return
-			}
-			slog.Info(fmt.Sprintf("Creating Category: %s", gameName))
-			newCategory, err := s.GuildChannelCreate(message.GuildID, gameName, discordgo.ChannelTypeGuildCategory)
-			slog.Info("Done")
-
-			if err == nil {
-				slog.Info("Creating Game Channels")
-				channelData := discordgo.GuildChannelCreateData{Name: "story", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-				s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-				channelData = discordgo.GuildChannelCreateData{Name: "ooc", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-				s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-				channelData = discordgo.GuildChannelCreateData{Name: "maps", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-				s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-				channelData = discordgo.GuildChannelCreateData{Name: "combat-stats", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-				s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-				slog.Info("Done")
-			}
-		} else {
+		if permissions&discordgo.PermissionAdministrator != discordgo.PermissionAdministrator {
 			slog.Warn("User is not admin")
 			slog.Warn("Permissions", slog.Int64("Permissions:", permissions))
+			return
+		}
+
+		slog.Info("BrokenMessage", slog.Any("Message", brokenMessage))
+		if !verifySetupGameMessage(brokenMessage) {
+
+			s.ChannelMessageSend(
+				message.ChannelID,
+				"Command formatted poorly. Try again: "+
+					"`"+".setupgame"+"`"+
+					"\"Name of game\" GM @GM @GM2(optional) Players @Player1 @Player2 etc",
+			)
+
+			slog.Error("Badly formatted command")
+			return
+		}
+		gameName := brokenMessage[1]
+
+		channels, err := s.GuildChannels(GuildID)
+		if err != nil {
+			slog.Error(err.Error())
+			return
+		}
+		if doesCategoryExist(channels, gameName) {
+			s.ChannelMessageSend(message.ChannelID, "Game already exists! Try again.")
+
+			slog.Error("Game already exists")
+			return
+		}
+		slog.Info(fmt.Sprintf("Creating Category: %s", gameName))
+		newCategory, err := s.GuildChannelCreate(message.GuildID, gameName, discordgo.ChannelTypeGuildCategory)
+		slog.Info("Done")
+
+		if err == nil {
+			slog.Info("Creating Game Channels")
+			channelData := discordgo.GuildChannelCreateData{Name: "story", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+			s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+			channelData = discordgo.GuildChannelCreateData{Name: "ooc", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+			s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+			channelData = discordgo.GuildChannelCreateData{Name: "maps", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+			s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+			channelData = discordgo.GuildChannelCreateData{Name: "combat-stats", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+			s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+			slog.Info("Done")
 		}
 	}
 }
@@ -205,7 +217,27 @@ func splitMessage(s string) []string {
 	return result
 }
 
-func verifySetupGameMessage([]string) bool {
+func verifySetupGameMessage(message []string) bool {
+	if message[0] != ".setupgame" {
+		return false
+	}
+	if len(message) < 6 {
+		return false
+	}
+	if message[2] != "GM" {
+		return false
+	}
+	containsPlayers := func(message []string) bool {
+		for _, a := range message {
+			if a == "Players" {
+				return true
+			}
+		}
+		return false
+	}
+	if !containsPlayers(message) {
+		return false
+	}
 	return true
 }
 

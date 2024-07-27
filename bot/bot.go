@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -73,6 +74,7 @@ func Run() {
 		}
 	})
 
+	s.AddHandler(newMessage)
 	// open session
 	err = s.Open()
 	if err != nil {
@@ -131,4 +133,66 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 	if message.Author.ID == s.State.User.ID {
 		return
 	}
+
+	brokenMessage := splitMessage(message.Content)
+
+	switch {
+	case brokenMessage[0] == ".setupgame":
+		permissions, err := s.UserChannelPermissions(message.Author.ID, message.ChannelID)
+		if err != nil {
+			slog.Error(err.Error())
+		}
+
+		slog.Info("BrokenMessage", slog.Any("Message", brokenMessage))
+		gameName := brokenMessage[1]
+
+		if permissions&discordgo.PermissionAdministrator == discordgo.PermissionAdministrator {
+
+			slog.Info(fmt.Sprintf("Creating Category: %s", gameName))
+			newCategory, err := s.GuildChannelCreate(message.GuildID, gameName, discordgo.ChannelTypeGuildCategory)
+			slog.Info("Done")
+
+			if err == nil {
+				slog.Info("Creating Game Channels")
+				channelData := discordgo.GuildChannelCreateData{Name: "story", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+				s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+				channelData = discordgo.GuildChannelCreateData{Name: "ooc", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+				s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+				channelData = discordgo.GuildChannelCreateData{Name: "maps", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+				s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+				channelData = discordgo.GuildChannelCreateData{Name: "combat-stats", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
+				s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+				slog.Info("Done")
+			}
+		} else {
+			slog.Warn("User is not admin")
+			slog.Warn("Permissions", slog.Int64("Permissions:", permissions))
+		}
+	}
+}
+
+func splitMessage(s string) []string {
+	var result []string
+	var current string
+	var inQuotes bool
+	for _, char := range s {
+		if char == '"' {
+			inQuotes = !inQuotes
+		} else if char == ' ' && !inQuotes {
+			result = append(result, current)
+			current = ""
+		} else {
+			current += string(char)
+		}
+	}
+	result = append(result, current)
+	return result
+}
+
+func verifySetupGameMessage([]string) bool {
+	return true
 }

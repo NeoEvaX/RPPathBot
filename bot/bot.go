@@ -185,6 +185,12 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			return
 		}
 
+		rodRole, err := findRole(s, "Rod")
+		if err != nil {
+			slog.Error("Error finding @Rod role", slog.Any("err", err))
+			return
+		}
+
 		channels, err := s.GuildChannels(GuildID)
 		if err != nil {
 			slog.Error(err.Error())
@@ -196,33 +202,95 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			slog.Error("Game already exists")
 			return
 		}
+
 		slog.Info(fmt.Sprintf("Creating Category: %s", gameName))
 		newCategoryPermissionOverrides := []*discordgo.PermissionOverwrite{
-			{ID: gameMasters[0].User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionManageMessages, Deny: 0},
-			{ID: gameMasters[0].User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionManageChannels, Deny: 0},
 			{ID: everyoneRole.ID, Type: discordgo.PermissionOverwriteTypeRole, Allow: 0, Deny: discordgo.PermissionViewChannel},
+			{ID: rodRole.ID, Type: discordgo.PermissionOverwriteTypeRole, Allow: discordgo.PermissionViewChannel, Deny: 0},
 		}
+
+		for _, gm := range gameMasters {
+			newCategoryPermissionOverrides = append(newCategoryPermissionOverrides, gmPermissions(gm)...)
+		}
+
 		newCategoryData := discordgo.GuildChannelCreateData{Name: gameName, Type: discordgo.ChannelTypeGuildCategory, PermissionOverwrites: newCategoryPermissionOverrides}
 		newCategory, err := s.GuildChannelCreateComplex(message.GuildID, newCategoryData)
 		slog.Info("Done")
 
-		if err == nil {
-			slog.Info("Creating Game Channels")
-			channelData := discordgo.GuildChannelCreateData{Name: "story", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-			s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-			channelData = discordgo.GuildChannelCreateData{Name: "ooc", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-			s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-			channelData = discordgo.GuildChannelCreateData{Name: "maps", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-			s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-			channelData = discordgo.GuildChannelCreateData{Name: "combat-stats", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-			s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-			slog.Info("Done")
+		if err != nil {
+			slog.Error("Error creating category", slog.Any("err", err))
+			return
 		}
+
+		newChannelPermissionsOverwrites := []*discordgo.PermissionOverwrite{}
+		newChannelReadonlyPermissionsOverwrites := []*discordgo.PermissionOverwrite{}
+
+		for _, player := range gamePlayers {
+			newChannelPermissionsOverwrites = append(newCategoryPermissionOverrides, playerPermissionsWrite(player)...)
+		}
+
+		for _, player := range gamePlayers {
+			newChannelReadonlyPermissionsOverwrites = append(newCategoryPermissionOverrides, playerPermissionsRead(player)...)
+		}
+
+		slog.Info("Creating Game Channels")
+		channelData := discordgo.GuildChannelCreateData{
+			Name:                 "story",
+			Type:                 discordgo.ChannelTypeGuildText,
+			ParentID:             newCategory.ID,
+			PermissionOverwrites: newChannelPermissionsOverwrites,
+		}
+		s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+		channelData = discordgo.GuildChannelCreateData{
+			Name:                 "ooc",
+			Type:                 discordgo.ChannelTypeGuildText,
+			ParentID:             newCategory.ID,
+			PermissionOverwrites: newChannelPermissionsOverwrites,
+		}
+		s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+		channelData = discordgo.GuildChannelCreateData{
+			Name:                 "maps",
+			Type:                 discordgo.ChannelTypeGuildText,
+			ParentID:             newCategory.ID,
+			PermissionOverwrites: newChannelReadonlyPermissionsOverwrites,
+		}
+		s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+		channelData = discordgo.GuildChannelCreateData{
+			Name:                 "combat-stats",
+			Type:                 discordgo.ChannelTypeGuildText,
+			ParentID:             newCategory.ID,
+			PermissionOverwrites: newChannelReadonlyPermissionsOverwrites,
+		}
+		s.GuildChannelCreateComplex(message.GuildID, channelData)
+
+		slog.Info("Done")
 	}
+}
+
+func gmPermissions(gmUser discordgo.Member) []*discordgo.PermissionOverwrite {
+	permissions := []*discordgo.PermissionOverwrite{
+		{ID: gmUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionManageMessages, Deny: 0},
+		{ID: gmUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionManageChannels, Deny: 0},
+	}
+	return permissions
+}
+
+func playerPermissionsWrite(playerUser discordgo.Member) []*discordgo.PermissionOverwrite {
+	permissions := []*discordgo.PermissionOverwrite{
+		{ID: playerUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionSendMessages, Deny: 0},
+		{ID: playerUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionViewChannel, Deny: 0},
+	}
+	return permissions
+}
+
+func playerPermissionsRead(playerUser discordgo.Member) []*discordgo.PermissionOverwrite {
+	permissions := []*discordgo.PermissionOverwrite{
+		{ID: playerUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionViewChannel, Deny: discordgo.PermissionSendMessages},
+	}
+	return permissions
 }
 
 func splitMessage(s string) []string {
@@ -334,6 +402,7 @@ func parsePlayers(s *discordgo.Session, message []string) ([]discordgo.Member, e
 func findRole(s *discordgo.Session, roleName string) (discordgo.Role, error) {
 	// Get the @everyone role
 	Roles, _ := s.GuildRoles(GuildID)
+	slog.Info("Roles", slog.Any("Roles", Roles))
 	idx := slices.IndexFunc(Roles, func(r *discordgo.Role) bool { return r.Name == roleName })
 	if idx == -1 {
 		return discordgo.Role{}, errors.New("Could not find role")

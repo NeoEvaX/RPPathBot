@@ -38,9 +38,9 @@ test:
 ## build: build a binary
 .PHONY: build
 build: test
-	go build -o ./bin/$(APP_NAME) ./cmd/$(APP_NAME)/main.go
+	go build -o ./bin/$(APP_NAME) ./main.go
 
 ## start: build and run local project
 .PHONY: dev
 dev:
-	go build -o ./tmp/$(APP_NAME) ./cmd/$(APP_NAME)/main.go && air
+	go build -o ./tmp/$(APP_NAME) ./main.go && air

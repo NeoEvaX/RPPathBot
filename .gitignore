@@ -23,6 +23,6 @@ go.work
 .env
 
 tmp/
-
+bin/
 .DS_Store
 

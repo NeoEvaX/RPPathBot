@@ -1,13 +1,10 @@
 package bot
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
-	"slices"
-	"strings"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
@@ -17,46 +14,6 @@ var (
 	BotToken string
 	GuildID  string
 	s        *discordgo.Session
-)
-
-var (
-	defaultMemberPermissions int64 = discordgo.PermissionAdministrator
-	commands                       = []*discordgo.ApplicationCommand{
-		{
-			Name:                     "setupgame2",
-			Description:              "Setup a new game",
-			DefaultMemberPermissions: &defaultMemberPermissions,
-		},
-	}
-
-	commandHandlers = map[string]func(s *discordgo.Session, m *discordgo.InteractionCreate){
-		"setupgame2": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			slog.Info("Creating Category: setup")
-			newCategory, err := s.GuildChannelCreate(i.GuildID, "setup", discordgo.ChannelTypeGuildCategory)
-			slog.Info("Created Category: setup")
-
-			if err == nil {
-				slog.Info("Creating Channel: channel")
-				channelData := discordgo.GuildChannelCreateData{Name: "channel", Type: discordgo.ChannelTypeGuildText, ParentID: newCategory.ID}
-				s.GuildChannelCreateComplex(i.GuildID, channelData)
-				slog.Info("Created Channel: channel")
-
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Content: "Game created!",
-					},
-				})
-			} else {
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Content: "Error creating game!",
-					},
-				})
-			}
-		},
-	}
 )
 
 func Run() {
@@ -71,30 +28,12 @@ func Run() {
 		slog.Info("Logged in as:", s.State.User.Username, s.State.User.Discriminator)
 	})
 
-	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
-			h(s, i)
-		}
-	})
-
 	s.AddHandler(newMessage)
 	// open session
 	err = s.Open()
 	if err != nil {
 		slog.Error("Cannot open session", slog.Any("err", err.Error()))
 		return
-	}
-
-	slog.Info("Adding commands...", slog.Int("amount:", len(commands)))
-	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
-	for i, v := range commands {
-		cmd, err := s.ApplicationCommandCreate(s.State.User.ID, GuildID, v)
-		if err != nil {
-			slog.Error("Cannot create '%v' command: %v", v.Name, err)
-			return
-		}
-		registeredCommands[i] = cmd
-		slog.Info("Created command: ", slog.Any("command", v.Name))
 	}
 
 	defer s.Close() // close session, after function termination
@@ -105,25 +44,6 @@ func Run() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	slog.Info("Press Ctrl + C to exit")
 	<-stop
-
-	slog.Info("Removing commands...")
-	// // We need to fetch the commands, since deleting requires the command ID.
-	// // We are doing this from the returned commands on line 375, because using
-	// // this will delete all the commands, which might not be desirable, so we
-	// // are deleting only the commands that we added.
-	//registeredCommands, err = s.ApplicationCommands(s.State.User.ID, "")
-	//if err != nil {
-	//	log.Fatalf("Could not fetch registered commands: %v", err)
-	//}
-
-	for _, v := range registeredCommands {
-		err := s.ApplicationCommandDelete(s.State.User.ID, GuildID, v.ID)
-		if err != nil {
-			slog.Error("Cannot delete '%v' command: %v", v.Name, err)
-		} else {
-			slog.Info("Deleted command", slog.String("name", v.Name))
-		}
-	}
 
 	slog.Info("Bot stopped")
 }
@@ -270,71 +190,6 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 	}
 }
 
-func gmPermissions(gmUser discordgo.Member) []*discordgo.PermissionOverwrite {
-	permissions := []*discordgo.PermissionOverwrite{
-		{ID: gmUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionManageMessages, Deny: 0},
-		{ID: gmUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionManageChannels, Deny: 0},
-	}
-	return permissions
-}
-
-func playerPermissionsWrite(playerUser discordgo.Member) []*discordgo.PermissionOverwrite {
-	permissions := []*discordgo.PermissionOverwrite{
-		{ID: playerUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionSendMessages, Deny: 0},
-		{ID: playerUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionViewChannel, Deny: 0},
-	}
-	return permissions
-}
-
-func playerPermissionsRead(playerUser discordgo.Member) []*discordgo.PermissionOverwrite {
-	permissions := []*discordgo.PermissionOverwrite{
-		{ID: playerUser.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: discordgo.PermissionViewChannel, Deny: discordgo.PermissionSendMessages},
-	}
-	return permissions
-}
-
-func splitMessage(s string) []string {
-	var result []string
-	var current string
-	var inQuotes bool
-	for _, char := range s {
-		if char == '"' {
-			inQuotes = !inQuotes
-		} else if char == ' ' && !inQuotes {
-			result = append(result, current)
-			current = ""
-		} else {
-			current += string(char)
-		}
-	}
-	result = append(result, current)
-	return result
-}
-
-func verifySetupGameMessage(message []string) bool {
-	if message[0] != ".setupgame" {
-		return false
-	}
-	if len(message) < 6 {
-		return false
-	}
-	if message[2] != "GM" {
-		return false
-	}
-	containsPlayers := func(message []string) bool {
-		for _, a := range message {
-			if a == "Players" {
-				return true
-			}
-		}
-		return false
-	}
-	if !containsPlayers(message) {
-		return false
-	}
-	return true
-}
-
 func doesCategoryExist(channels []*discordgo.Channel, newName string) bool {
 	for _, c := range channels {
 		// Check if channel is a guild text channel and not a voice or DM channel
@@ -347,65 +202,4 @@ func doesCategoryExist(channels []*discordgo.Channel, newName string) bool {
 		}
 	}
 	return false
-}
-
-func findMemberFromName(s *discordgo.Session, userId string) (member *discordgo.Member, err error) {
-	userId = strings.Replace(userId, "<@", "", -1)
-	userId = strings.Replace(userId, ">", "", -1)
-	member, err = s.GuildMember(GuildID, userId)
-	if err != nil {
-		slog.Error("Error finding member", slog.String("userId", userId), slog.Any("err", err))
-		return
-	}
-	return
-}
-
-func parseGamemasters(s *discordgo.Session, message []string) ([]discordgo.Member, error) {
-	var gameMasters []discordgo.Member
-	// start looping through after GM tag
-	for _, a := range message[3:] {
-		if a == "Players" {
-			return gameMasters, nil
-		}
-		newGameMaster, err := findMemberFromName(s, a)
-		if err != nil {
-			slog.Error("Error finding member", slog.String("userId", a), slog.Any("err", err))
-			return nil, err
-		}
-		gameMasters = append(gameMasters, *newGameMaster)
-	}
-	return gameMasters, nil
-}
-
-func parsePlayers(s *discordgo.Session, message []string) ([]discordgo.Member, error) {
-	var players []discordgo.Member
-	// start looping through after GMs, but skipping till its Players
-	started := false
-	for _, a := range message[4:] {
-		if a == "Players" {
-			started = true
-			continue
-
-		}
-		if !started {
-			continue
-		}
-		newPlayer, err := findMemberFromName(s, a)
-		if err != nil {
-			return nil, err
-		}
-		players = append(players, *newPlayer)
-	}
-	return players, nil
-}
-
-func findRole(s *discordgo.Session, roleName string) (discordgo.Role, error) {
-	// Get the @everyone role
-	Roles, _ := s.GuildRoles(GuildID)
-	slog.Info("Roles", slog.Any("Roles", Roles))
-	idx := slices.IndexFunc(Roles, func(r *discordgo.Role) bool { return r.Name == roleName })
-	if idx == -1 {
-		return discordgo.Role{}, errors.New("Could not find role")
-	}
-	return *Roles[idx], nil
 }

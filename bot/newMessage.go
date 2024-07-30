@@ -27,6 +27,7 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 		}
 
 		if permissions&discordgo.PermissionAdministrator != discordgo.PermissionAdministrator {
+			s.ChannelMessageSend(message.ChannelID, "You are not admin! Stop it!")
 			slog.Warn("User is not admin")
 			slog.Warn("Permissions", slog.Int64("Permissions:", permissions))
 			return
@@ -44,6 +45,7 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			slog.Error("Badly formatted command")
 			return
 		}
+
 		gameName := brokenMessage[1]
 		gameMasters, err := parseGamemasters(s, brokenMessage)
 		if err != nil {
@@ -81,6 +83,8 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			slog.Error("Game already exists")
 			return
 		}
+
+		s.ChannelMessageSend(message.ChannelID, "Starting to create game. Beep Boop.")
 
 		slog.Info(fmt.Sprintf("Creating Category: %s", gameName))
 		newCategoryPermissionOverrides := []*discordgo.PermissionOverwrite{

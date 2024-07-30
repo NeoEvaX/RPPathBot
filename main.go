@@ -16,7 +16,7 @@ func main() {
 	// load environment variables
 	err := godotenv.Load()
 	if err != nil {
-		slog.Error("Error loading .env file")
+		slog.Error("Error loading .env file", slog.Any("err", err))
 	}
 
 	bot.BotToken = os.Getenv("DISCORD_TOKEN")

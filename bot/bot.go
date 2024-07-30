@@ -133,10 +133,9 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			newCategoryPermissionOverrides = append(newCategoryPermissionOverrides, gmPermissions(gm)...)
 		}
 
+		slog.Info("Creating Category", slog.Any("Permissions", newCategoryPermissionOverrides))
 		newCategoryData := discordgo.GuildChannelCreateData{Name: gameName, Type: discordgo.ChannelTypeGuildCategory, PermissionOverwrites: newCategoryPermissionOverrides}
 		newCategory, err := s.GuildChannelCreateComplex(message.GuildID, newCategoryData)
-		slog.Info("Done")
-
 		if err != nil {
 			slog.Error("Error creating category", slog.Any("err", err))
 			return
@@ -153,7 +152,10 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			newChannelReadonlyPermissionsOverwrites = append(newCategoryPermissionOverrides, playerPermissionsRead(player)...)
 		}
 
-		slog.Info("Creating Game Channels")
+		slog.Info("Creating Game Channels",
+			slog.Any("Write Permissions", newChannelPermissionsOverwrites),
+			slog.Any("Read Permissions", newChannelReadonlyPermissionsOverwrites))
+
 		channelData := discordgo.GuildChannelCreateData{
 			Name:                 "story",
 			Type:                 discordgo.ChannelTypeGuildText,
@@ -185,8 +187,6 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			PermissionOverwrites: newChannelReadonlyPermissionsOverwrites,
 		}
 		s.GuildChannelCreateComplex(message.GuildID, channelData)
-
-		slog.Info("Done")
 	}
 }
 

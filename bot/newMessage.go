@@ -100,15 +100,15 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 			return
 		}
 
-		newChannelPermissionsOverwrites := []*discordgo.PermissionOverwrite{}
-		newChannelReadonlyPermissionsOverwrites := []*discordgo.PermissionOverwrite{}
+		newChannelPermissionsOverwrites := newCategoryPermissionOverrides
+		newChannelReadonlyPermissionsOverwrites := newCategoryPermissionOverrides
 
 		for _, player := range gamePlayers {
-			newChannelPermissionsOverwrites = append(newCategoryPermissionOverrides, playerPermissionsWrite(player)...)
+			newChannelPermissionsOverwrites = append(newChannelPermissionsOverwrites, playerPermissionsWrite(player)...)
 		}
 
 		for _, player := range gamePlayers {
-			newChannelReadonlyPermissionsOverwrites = append(newCategoryPermissionOverrides, playerPermissionsRead(player)...)
+			newChannelReadonlyPermissionsOverwrites = append(newChannelReadonlyPermissionsOverwrites, playerPermissionsRead(player)...)
 		}
 
 		slog.Info("Creating Game Channels",

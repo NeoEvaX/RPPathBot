@@ -62,7 +62,7 @@ func parsePlayers(s *discordgo.Session, message []string) ([]discordgo.Member, e
 func findRole(s *discordgo.Session, roleName string) (discordgo.Role, error) {
 	// Get the @everyone role
 	Roles, _ := s.GuildRoles(GuildID)
-	slog.Info("Roles", slog.Any("Roles", Roles))
+	slog.Info("Finding Roles", slog.Any("Roles", Roles))
 	idx := slices.IndexFunc(Roles, func(r *discordgo.Role) bool { return r.Name == roleName })
 	if idx == -1 {
 		return discordgo.Role{}, errors.New("Could not find role")

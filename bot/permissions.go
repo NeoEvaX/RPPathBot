@@ -22,6 +22,24 @@ func gmPermissions(gmUser discordgo.Member) []*discordgo.PermissionOverwrite {
 			Allow: discordgo.PermissionViewChannel,
 			Deny:  0,
 		},
+		{
+			ID:    gmUser.User.ID,
+			Type:  discordgo.PermissionOverwriteTypeMember,
+			Allow: discordgo.PermissionManageRoles,
+			Deny:  0,
+		},
+		{
+			ID:    gmUser.User.ID,
+			Type:  discordgo.PermissionOverwriteTypeMember,
+			Allow: discordgo.PermissionSendMessages,
+			Deny:  0,
+		},
+		{
+			ID:    gmUser.User.ID,
+			Type:  discordgo.PermissionOverwriteTypeMember,
+			Allow: discordgo.PermissionAllChannel,
+			Deny:  0,
+		},
 	}
 	return permissions
 }

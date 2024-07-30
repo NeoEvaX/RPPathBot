@@ -93,7 +93,11 @@ func newMessage(s *discordgo.Session, message *discordgo.MessageCreate) {
 		}
 
 		slog.Info("Creating Category", slog.Any("Permissions", newCategoryPermissionOverrides))
-		newCategoryData := discordgo.GuildChannelCreateData{Name: gameName, Type: discordgo.ChannelTypeGuildCategory, PermissionOverwrites: newCategoryPermissionOverrides}
+		newCategoryData := discordgo.GuildChannelCreateData{
+			Name:                 gameName,
+			Type:                 discordgo.ChannelTypeGuildCategory,
+			PermissionOverwrites: newCategoryPermissionOverrides,
+		}
 		newCategory, err := s.GuildChannelCreateComplex(message.GuildID, newCategoryData)
 		if err != nil {
 			slog.Error("Error creating category", slog.Any("err", err))

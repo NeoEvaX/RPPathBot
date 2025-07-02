@@ -40,7 +40,7 @@ test:
 build: test
 	go build -o ./bin/$(APP_NAME) ./main.go
 
-## start: build and run local project
+## dev: build and run local project
 .PHONY: dev
 dev:
-	go build -o ./tmp/$(APP_NAME) ./main.go && air
+	go build -o ./bin/$(APP_NAME) ./main.go && air
